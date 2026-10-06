@@ -9,6 +9,7 @@ from ..tmdl.types import is_known
 
 # Characters typical of a Mac Roman / UTF-8 file read with the wrong code page (e.g. "á" -> "‡").
 _MOJIBAKE = re.compile(r"[†‡‰ƒ]|Ã.|â€")
+_ADMIN_ROLES = {"ACCOUNTADMIN", "ORGADMIN", "SECURITYADMIN", "SYSADMIN", "USERADMIN"}
 _INLINE_SCRIPT = re.compile(r"\b(?:TERR|R|Python)_\w+\s*\(")
 
 _VISUAL_NOTES: dict[str, tuple[Severity, str]] = {
@@ -44,10 +45,34 @@ def assess(spec: Spec) -> None:
                 "Azure Maps instead of importing it")
         if s.kind == "other":
             add("high", "data source", f"{s.id}: unsupported source type {s.spotfire_type}")
+        if s.kind in ("snowflake", "odbc"):
+            settings = s.settings
+            if settings.get("dsn"):
+                add("high", "data source",
+                    f"{s.id}: connects through the ODBC DSN '{settings['dsn']}' on the author's machine; "
+                    "the account, warehouse and database are not in the file. Confirm them with the "
+                    "database owner and set them in overrides.json")
+            elif s.kind == "snowflake" and not settings.get("database"):
+                add("high", "data source", f"{s.id}: Snowflake database not recorded; set it in overrides.json")
+            if str(settings.get("role", "")).upper() in _ADMIN_ROLES:
+                add("medium", "data source",
+                    f"{s.id}: connection uses the administrative role {settings['role']}; ask for a "
+                    "dedicated read-only role for Power BI")
+            if settings.get("mode") == "directquery":
+                add("medium", "data source",
+                    f"{s.id}: live (in-database) Spotfire table becomes DirectQuery; every visual query "
+                    f"runs on warehouse {settings.get('warehouse', '?')}. Confirm the compute cost, or "
+                    "switch to Import with scheduled refresh")
+            if settings.get("sql"):
+                add("low", "data source",
+                    f"{s.id}: custom SQL kept as a native query; check that it runs unchanged in Power BI")
+            add("medium", "data source",
+                f"{s.id}: Power BI Service needs stored credentials (or SSO) for {s.kind} and, if the "
+                "account restricts network access, an allow-list entry for Power BI / the gateway")
 
     for t in spec.tables:
         if t.source_id is None:
-            add("high", "data model", f"table {t.name}: not loaded from a file source; origin must be rebuilt by hand")
+            add("high", "data model", f"table {t.name}: data source not found; origin must be rebuilt by hand")
         if t.transformations:
             add("medium", "data model",
                 f"table {t.name}: data transformations to port to Power Query: {', '.join(t.transformations)}")

@@ -6,7 +6,7 @@ import re
 
 from ..graph import Node, items
 from ..spec import ColumnSpec, RelationSpec, TableSpec
-from . import datasources
+from . import data_access, datasources
 from ._context import Context, text_of
 
 _ORIGINS = {
@@ -48,14 +48,35 @@ def _column(col: Node, table: str, ctx: Context) -> ColumnSpec:
     )
 
 
+def _connection_source(ctx: Context, table: Node, producer: Node, source_ids: dict,
+                       ) -> tuple[str | None, data_access.TableSchema]:
+    """Source id for a table read through a Spotfire data connection."""
+    schema_node = producer.get("TableSchema")
+    schema = data_access.table_schema(schema_node.get("Xml") if isinstance(schema_node, Node) else None)
+    ref = producer.get("DataConnectionReference")
+    conn_id = data_access.guid(ref.get("Id")) if isinstance(ref, Node) else None
+    connection = ctx.connections.get(conn_id or "")
+    if connection is None:
+        ctx.unparsed(f"table {table['Name']}: data connection {conn_id} is not embedded in the file "
+                     "(library data connection?)")
+        return None, schema
+    key = (conn_id, schema.attributes.get("Group"), schema.attributes.get("ODBC.TableName"))
+    source_id = source_ids.get(key)
+    if source_id is None:
+        source_id = source_ids[key] = f"src{len(source_ids) + 1}"
+        live = isinstance(table.get("InDbConnection"), Node)
+        ctx.spec.data_sources.append(datasources.describe_connection(connection, schema, source_id, live))
+    return source_id, schema
+
+
 def extract(ctx: Context) -> None:
     dm = ctx.graph.root["DataManager"]
-    source_ids: dict[int, str] = {}
+    source_ids: dict[object, str] = {}
 
     for t in items(dm.get("Tables")):
         name = t["Name"]
         producer = t.get("ColumnProducer")
-        source_id, transformations = None, []
+        source_id, transformations, schema = None, [], data_access.TableSchema()
         # Derived producers (e.g. RemoveRowsColumnProducer) wrap the original one.
         while (isinstance(producer, Node) and producer.class_name != "SourceColumnProducer"
                and isinstance(producer.get("OriginalData"), Node)):
@@ -71,11 +92,15 @@ def extract(ctx: Context) -> None:
                     ctx.spec.data_sources.append(datasources.describe(ds, source_id))
             if isinstance(flow, Node):
                 transformations += [x.class_name for x in items(flow.get("Transformations"))]
+        elif isinstance(producer, Node) and producer.class_name == "DataAccessColumnProducer":
+            source_id, schema = _connection_source(ctx, t, producer, source_ids)
         else:
             kind = producer.class_name if isinstance(producer, Node) else repr(producer)
             ctx.unparsed(f"table {name}: unsupported column producer {kind}")
 
         columns = [_column(c, name, ctx) for c in items(t.get("Columns"))]
+        for c in columns:
+            c.external_type = schema.column_types.get(c.external_name or c.name)
         ctx.spec.tables.append(
             TableSpec(name=name, source_id=source_id, columns=columns, transformations=transformations)
         )

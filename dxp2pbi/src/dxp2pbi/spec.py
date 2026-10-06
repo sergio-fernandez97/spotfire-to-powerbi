@@ -25,9 +25,11 @@ ExpressionKind = Literal[
 
 class DataSourceSpec(BaseModel):
     id: str
-    kind: Literal["text", "excel", "sbdf_file", "sbdf_library", "shapefile", "other"]
+    kind: Literal["text", "excel", "sbdf_file", "sbdf_library", "shapefile", "snowflake", "odbc", "other"]
     spotfire_type: str
     path: str | None = None
+    # Database sources: server, warehouse, role, database, schema, table, table_type, sql, dsn,
+    # mode ("import" | "directquery"). Credentials are never stored.
     settings: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -35,6 +37,7 @@ class ColumnSpec(BaseModel):
     name: str
     external_name: str | None = None
     spotfire_type: str
+    external_type: str | None = None  # database type when known, e.g. "DECIMAL(38,0)"
     origin: Literal["source", "calculated", "tags", "other"]
     expression: str | None = None
 

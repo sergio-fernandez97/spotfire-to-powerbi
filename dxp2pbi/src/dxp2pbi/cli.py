@@ -6,6 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from . import overrides
 from .archive import DxpArchive
 from .extract import build_spec
 from .graph import Graph
@@ -17,7 +18,8 @@ from .validate import validate_model
 
 
 def _load_spec(d: Path) -> Spec:
-    return Spec.model_validate_json((d / "spec.json").read_text(encoding="utf-8"))
+    spec = Spec.model_validate_json((d / "spec.json").read_text(encoding="utf-8"))
+    return overrides.apply(spec, d / "overrides.json")
 
 
 def _render(d: Path, spec: Spec, translations: store.Translations | None) -> None:

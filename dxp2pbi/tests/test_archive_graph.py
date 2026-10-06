@@ -29,7 +29,8 @@ def metadata_count(archive: DxpArchive, key: str) -> int | None:
 def test_archive_picks_newest_document(path):
     archive, _ = load(path)
     assert archive.document_path == "AnalysisDocument.xml"
-    assert archive.document_version == "14.5"
+    # Spotfire 14.x saves 14.5 as the newest variant; 15.x saves 15.0 plus 14.8 / 14.6 copies.
+    assert archive.document_version in {"14.5", "15.0"}
     assert "EmbeddedScripts.xml" in archive.resources
 
 

@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 
 from ..graph import Graph, Node
 from ..spec import ExpressionKind, ExpressionUse, Spec
+from .data_access import Connection
 
 
 def text_of(value) -> str | None:
@@ -18,6 +19,7 @@ def text_of(value) -> str | None:
 class Context:
     graph: Graph
     spec: Spec
+    connections: dict[str, Connection] = field(default_factory=dict)
     _uses: dict[tuple[str, str, str | None], ExpressionUse] = field(default_factory=dict)
 
     def use(self, expression: str, kind: ExpressionKind, table: str | None, location: str) -> None:

@@ -1,7 +1,9 @@
+import json
 from pathlib import Path
 
 import pytest
 
+from dxp2pbi import overrides
 from dxp2pbi.extract import build_spec
 from dxp2pbi.tmdl.emit import emit
 from dxp2pbi.tmdl.parse import parse
@@ -79,3 +81,47 @@ def test_validator_rejects_space_indentation(tmp_path):
     f = result.root / "definition" / "tables" / "Viajes2024.tmdl"
     f.write_text(f.read_text(encoding="utf-8").replace("\tlineageTag", "    lineageTag", 1), encoding="utf-8")
     assert not validate_model(result.root).ok
+
+
+def test_snowflake_directquery_model(tmp_path):
+    _, result = build("LINEITEM_SnowflakeConexion_LiveData", tmp_path)
+    assert not result.todos
+    definition = result.root / "definition"
+    (table,), errors = parse((definition / "tables" / "LINEITEM.tmdl").read_text(encoding="utf-8"))
+    assert not errors
+    (partition,) = [c for c in table.children if c.kind == "partition"]
+    assert partition.properties["mode"] == "directQuery"
+    source = partition.properties["source"]
+    assert "Snowflake.Databases(SnowflakeServer, SnowflakeWarehouse, [Role=SnowflakeRole])" in source
+    assert 'Schema{[Name="LINEITEM",Kind="Table"]}[Data]' in source
+    types = {c.name: c.properties["dataType"] for c in table.children if c.kind == "column"}
+    assert types["L_ORDERKEY"] == "int64" and types["L_EXTENDEDPRICE"] == "decimal"
+    expressions = (definition / "expressions.tmdl").read_text(encoding="utf-8")
+    assert 'expression SnowflakeServer = "zqxuaeu-pu21602.snowflakecomputing.com"' in expressions
+
+
+def test_snowflake_dsn_needs_parameters_until_overridden(tmp_path):
+    spec, result = build("Customers_SnowflakeConexion_RefreshData", tmp_path / "raw")
+    assert sorted(t.split()[1] for t in result.todos) == [
+        "SnowflakeDatabase", "SnowflakeServer", "SnowflakeWarehouse"]
+    assert validate_model(result.root).ok
+
+    path = tmp_path / "overrides.json"
+    path.write_text(json.dumps({
+        "sources": {"src1": {"server": "org-acct.snowflakecomputing.com", "warehouse": "PBI_WH",
+                             "database": "SNOWFLAKE_SAMPLE_DATA"}},
+        "column_types": {"CUSTOMERS": {"C_CUSTKEY": "NUMBER(38,0)"}},
+    }), encoding="utf-8")
+    fixed = overrides.apply(spec, path)
+    result = emit(fixed, translate(fixed), tmp_path / "fixed")
+    assert not result.todos
+    text = (result.root / "definition" / "tables" / "CUSTOMERS.tmdl").read_text(encoding="utf-8")
+    assert "mode: import" in text and '{"C_CUSTKEY", Int64.Type}' in text
+
+
+def test_overrides_reject_unknown_keys(tmp_path):
+    spec, _ = build("Customers_SnowflakeConexion_RefreshData", tmp_path)
+    path = tmp_path / "overrides.json"
+    path.write_text(json.dumps({"sources": {"src1": {"password": "x"}}}), encoding="utf-8")
+    with pytest.raises(ValueError, match="password"):
+        overrides.apply(spec, path)

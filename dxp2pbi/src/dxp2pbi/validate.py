@@ -19,6 +19,14 @@ DATA_TYPES = {"string", "int64", "double", "decimal", "dateTime", "boolean", "bi
 TODO = "TODO(dxp2pbi)"
 _COLUMN_REF = re.compile(r"^('(?:[^']|'')*'|[^.']+)\.('(?:[^']|'')*'|.+)$")
 _FILE_CONTENTS = re.compile(r"File\.Contents\(\s*([^)]+?)\s*\)")
+# Parameter positions in database partitions (see tmdl/m_sources.py).
+_DB_ARGUMENTS = [
+    re.compile(r"Snowflake\.Databases\(\s*([^,]+?)\s*,"),
+    re.compile(r"Snowflake\.Databases\([^,]+,\s*([^,)]+?)\s*[,)]"),
+    re.compile(r"\[Role=([^\]]+)\]"),
+    re.compile(r'\{\[Name=([^,]+),Kind="Database"\]\}'),
+    re.compile(r'"dsn=" & ([^,]+),'),
+]
 
 
 @dataclass
@@ -97,7 +105,7 @@ def validate_model(root: Path) -> Report:
         if len(partitions) != 1:
             err(f"{where}: expected one partition, found {len(partitions)}")
         query = partitions[0].properties.get("source", "") if partitions else ""
-        for arg in _FILE_CONTENTS.findall(query):
+        for arg in [*_FILE_CONTENTS.findall(query), *(x for r in _DB_ARGUMENTS for x in r.findall(query))]:
             name = arg[2:-1] if arg.startswith('#"') else arg
             if not arg.startswith('"') and name not in params:
                 err(f"{where}: partition reads unknown parameter {arg}")

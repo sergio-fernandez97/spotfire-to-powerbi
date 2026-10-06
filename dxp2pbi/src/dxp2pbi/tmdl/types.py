@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 # Spotfire DataType.name -> (TMDL dataType, M type expression)
 _TYPES: dict[str, tuple[str, str]] = {
     "String": ("string", "type text"),
@@ -25,12 +27,24 @@ def is_known(spotfire_type: str) -> bool:
     return spotfire_type in _TYPES
 
 
-def tmdl_type(spotfire_type: str) -> str:
-    return _TYPES.get(spotfire_type, ("string", "type text"))[0]
+# Database integers (scale 0) reach Spotfire as Currency/Real; Power BI should see whole numbers.
+_WHOLE = re.compile(r"^(?:DECIMAL|NUMERIC|NUMBER)\(\d+,0\)$|^(?:BIGINT|INT|INTEGER|SMALLINT|TINYINT|BYTEINT)$",
+                    re.IGNORECASE)
 
 
-def m_type(spotfire_type: str) -> str:
-    return _TYPES.get(spotfire_type, ("string", "type text"))[1]
+def _pair(spotfire_type: str, external_type: str | None) -> tuple[str, str]:
+    if external_type and _WHOLE.match(external_type.replace(" ", "")) and spotfire_type in (
+            "Currency", "Real", "Integer", "LongInteger"):
+        return _TYPES["LongInteger"]
+    return _TYPES.get(spotfire_type, ("string", "type text"))
+
+
+def tmdl_type(spotfire_type: str, external_type: str | None = None) -> str:
+    return _pair(spotfire_type, external_type)[0]
+
+
+def m_type(spotfire_type: str, external_type: str | None = None) -> str:
+    return _pair(spotfire_type, external_type)[1]
 
 
 def format_string(spotfire_type: str) -> str | None:
