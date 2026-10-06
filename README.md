@@ -117,7 +117,9 @@ Windows**, with *File → Options → Preview features → Power BI Project (.pb
    the generated `definition/` folder into its `.SemanticModel`.
 3. Open the `.pbip` in Power BI Desktop.
 4. **Point it at your data:** Transform data → Manage parameters → set `CsvPath` (or `ExcelPath`)
-   to the real path of the data file. This is the only edit the model needs.
+   to the real path of the data file. For Snowflake sources, set `SnowflakeServer`,
+   `SnowflakeWarehouse`, `SnowflakeDatabase` (and `SnowflakeRole`), then sign in when prompted.
+   This is the only edit the model needs.
 5. Refresh. The tables, columns and measures load.
 
 > Not yet verified: no generated model has been opened in Power BI Desktop, because this was built

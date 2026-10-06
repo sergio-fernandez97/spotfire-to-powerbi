@@ -41,6 +41,20 @@ those, by editing `translations.json` only. The `.tmdl` files are always regener
 
 6. Report back: counts per status, the TODOs that remain, and anything that needs a human decision.
 
+## Database sources (Snowflake / ODBC)
+
+Connection facts that are not in the `.dxp` (a DSN's account, warehouse or database) show up as
+`parameter ... has no value` TODOs. Do not guess them. Put confirmed values in
+`out/<analysis>/overrides.json` (`sources.<id>`: server, warehouse, role, database, schema, table,
+mode), then run `tmdl` again.
+
+If a Snowflake MCP server is connected, use it to confirm facts, never to change data. Run
+read-only statements only (`SHOW`, `DESCRIBE`, `SELECT`):
+- `SHOW SCHEMAS LIKE '<schema>' IN ACCOUNT` to find the database behind a DSN query;
+- `DESCRIBE TABLE <db>.<schema>.<table>` to get column types, then record the `NUMBER(p,0)` ones under
+  `column_types` so they become `int64`;
+- `SELECT COUNT(*)` to get row counts, and report them so the refreshed model can be checked against them.
+
 ## DAX conventions
 
 - Columns always as `'Table'[Column]`; measures as `[Measure]`.
