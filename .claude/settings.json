@@ -1,4 +1,8 @@
 {
+  "enabledMcpjsonServers": ["snowflake"],
+  "permissions": {
+    "allow": ["mcp__snowflake__run_snowflake_query"]
+  },
   "hooks": {
     "PostToolUse": [
       {
