@@ -7,7 +7,9 @@ Phase 1 of the Spotfire → Power BI migration. It turns a Spotfire `.dxp` into:
 - `translations.json`: each Spotfire expression and its Power BI target (DAX measure, calculated
   column, visual setting);
 - `<analysis>.SemanticModel/`: a TMDL semantic model with typed columns, measures,
-  relationships, and a Power Query partition whose file path is a parameter.
+  relationships, and a Power Query partition whose file path (CSV/Excel) or connection
+  (Snowflake server, warehouse, database, role; ODBC DSN) is a parameter. Snowflake tables that
+  were live (in-database) in Spotfire become DirectQuery partitions.
 
 It runs on macOS with no Spotfire and no Power BI.
 
@@ -25,6 +27,20 @@ uv run --project dxp2pbi dxp2pbi inspect data/Viajes2024.dxp --types 40
 ```
 
 Output goes to `out/<analysis>/`, which is gitignored.
+
+Facts the `.dxp` does not hold go in `out/<analysis>/overrides.json` (see `overrides.py`). The
+file is applied whenever the spec is loaded, so it survives `dxp2pbi spec`:
+
+```json
+{
+  "sources": {"src1": {"server": "org-acct.snowflakecomputing.com", "warehouse": "PBI_WH",
+                       "database": "SNOWFLAKE_SAMPLE_DATA"}},
+  "column_types": {"CUSTOMERS": {"C_CUSTKEY": "NUMBER(38,0)"}}
+}
+```
+
+`sources` takes connection settings only (never credentials). `column_types` takes database
+types, for example from `DESCRIBE TABLE`, and a `NUMBER(p,0)` column becomes `int64`.
 
 ## How it works
 

@@ -74,6 +74,38 @@ def test_sales_and_marketing_pages():
     assert spec.pages[0].visuals[0].text
 
 
+def test_snowflake_live_connection():
+    spec = spec_for("LINEITEM_SnowflakeConexion_LiveData")
+    (table,) = spec.tables
+    (source,) = spec.data_sources
+    assert table.source_id == source.id and source.kind == "snowflake"
+    assert source.settings == {
+        "connection": "Snowflake", "server": "zqxuaeu-pu21602.snowflakecomputing.com",
+        "warehouse": "COMPUTE_WH", "role": "USERADMIN", "database": "SNOWFLAKE_SAMPLE_DATA",
+        "schema": "TPCH_SF1", "table": "LINEITEM", "table_type": "TABLE", "mode": "directquery",
+    }
+    types = {c.name: c.external_type for c in table.columns}
+    assert types["L_ORDERKEY"] == "DECIMAL(38,0)" and types["L_TAX"] == "DECIMAL(12,2)"
+    assert not spec.unparsed
+    assert any("USERADMIN" in r.message for r in spec.risks)
+
+
+def test_snowflake_odbc_dsn_import():
+    spec = spec_for("Customers_SnowflakeConexion_RefreshData")
+    (source,) = spec.data_sources
+    assert source.kind == "snowflake"
+    # SELECT "TPCH_SF1"."CUSTOMER".* FROM "TPCH_SF1"."CUSTOMER" becomes a plain table read.
+    assert source.settings == {"provider": "System.Data.Odbc", "dsn": "Snowflake_ODBC", "mode": "import",
+                               "schema": "TPCH_SF1", "table": "CUSTOMER"}
+    assert any(r.severity == "high" and "DSN" in r.message for r in spec.risks)
+
+
+def test_connection_strings_drop_credentials():
+    from dxp2pbi.extract.data_access import parse_connection_string
+    assert parse_connection_string("Driver={X};server=a.b;UID=me;PWD=secret;token=t") == {
+        "driver": "{X}", "server": "a.b", "uid": "me"}
+
+
 def test_binning_axes_are_categorical_not_measures():
     spec = spec_for("Configuring Advanced Visualizations")
     binned = [e for e in spec.expressions if "BinByEvenIntervals" in e.expression]

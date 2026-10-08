@@ -7,7 +7,7 @@ from pathlib import Path
 from ..archive import DxpArchive
 from ..graph import Graph
 from ..spec import Spec
-from . import pages, risks, scripts, tables
+from . import data_access, pages, risks, scripts, tables
 from ._context import Context
 
 
@@ -20,7 +20,7 @@ def build_spec(path: str | Path) -> tuple[Spec, DxpArchive]:
         spotfire_version=archive.saved_by_version,
         document_version=archive.document_version,
     )
-    ctx = Context(graph, spec)
+    ctx = Context(graph, spec, data_access.connections(archive.data_access_plan()))
     tables.extract(ctx)
     pages.extract(ctx)
     scripts.extract(ctx, archive)

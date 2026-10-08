@@ -111,7 +111,7 @@ def render_md(
         out += [" · ".join(meta), ""]
         out.append(_table(
             ["Column", "Spotfire type", "Power BI type", "Origin", "Expression"],
-            [[_cell(c.name), c.spotfire_type, tmdl_type(c.spotfire_type), c.origin,
+            [[_cell(c.name), c.spotfire_type + (f" ({c.external_type})" if c.external_type else ""), tmdl_type(c.spotfire_type, c.external_type), c.origin,
               _code(c.expression)] for c in t.columns],
         ))
         out.append("")

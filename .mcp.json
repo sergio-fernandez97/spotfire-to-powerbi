@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "snowflake": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": ["snowflake-labs-mcp@1.4.2", "--service-config-file", ".claude/snowflake_mcp.yaml"],
+      "env": {
+        "SNOWFLAKE_ACCOUNT": "${SNOWFLAKE_ACCOUNT}",
+        "SNOWFLAKE_USER": "${SNOWFLAKE_USER}",
+        "SNOWFLAKE_PASSWORD": "${SNOWFLAKE_PAT}",
+        "SNOWFLAKE_WAREHOUSE": "${SNOWFLAKE_WAREHOUSE}",
+        "SNOWFLAKE_ROLE": "${SNOWFLAKE_ROLE}"
+      }
+    }
+  }
+}

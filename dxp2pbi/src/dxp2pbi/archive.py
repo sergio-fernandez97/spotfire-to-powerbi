@@ -81,6 +81,11 @@ class DxpArchive:
         arc = self.resources.get(logical_name)
         return self.zf.read(arc) if arc else None
 
+    def data_access_plan(self) -> bytes | None:
+        """Embedded data connections (Spotfire 10+), used by in-database / data-connection tables."""
+        name = "DataArchive/DataAccessPlan.xml"
+        return self.zf.read(name) if name in self.zf.namelist() else None
+
     def bookmark_paths(self) -> list[str]:
         return sorted(n for n in self.zf.namelist() if n.startswith("Bookmarks/"))
 

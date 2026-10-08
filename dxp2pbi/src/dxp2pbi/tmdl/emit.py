@@ -74,7 +74,7 @@ class _Emitter:
         self.spec = spec
         self.analysis = spec.analysis_name
         self.result = EmitResult(out_dir / f"{spec.analysis_name}.SemanticModel")
-        self.params = m_sources.parameter_names(spec)
+        self.params = m_sources.parameters(spec)
         self.by_key = {(i.kind, i.table, i.expression): i for i in translations.items}
         self.measures: dict[str, list[TranslationItem]] = {}
         for item in translations.items:
@@ -85,7 +85,7 @@ class _Emitter:
             else:
                 self.todo(f"measure {item.name}: no host table for {_one_line(item.expression)}")
         self.columns: dict[str, dict[str, str]] = {
-            t.name: {c.name: tmdl_type(c.spotfire_type) for c in t.columns if not _skip_reason(c)}
+            t.name: {c.name: tmdl_type(c.spotfire_type, c.external_type) for c in t.columns if not _skip_reason(c)}
             for t in spec.tables
         }
         self.measure_names = {i.name for items in self.measures.values() for i in items if i.name}
@@ -125,7 +125,7 @@ class _Emitter:
             if reason:
                 self.todo(f"column {t.name}[{c.name}] not emitted: {reason}")
                 continue
-            data_type = tmdl_type(c.spotfire_type)
+            data_type = tmdl_type(c.spotfire_type, c.external_type)
             if c.origin == "calculated":
                 item = self.by_key.get(("calculated_column", t.name, c.expression))
                 expression, why = self._ready_dax(item, t.name)
@@ -152,12 +152,15 @@ class _Emitter:
                 lines += ["", "\t\tannotation UnderlyingDateTimeDataType = Date"]
             lines.append("")
 
+        source = self.spec.source(t.source_id)
         query, reason = m_sources.partition_query(
-            t, source_columns, self.spec.source(t.source_id), self.params.get(t.source_id or "")
+            t, source_columns, source, self.params.get(t.source_id or "")
         )
         if reason:
             self.todo(f"table {t.name}: {reason}")
-        lines += [f"\tpartition {q(t.name)} = m", "\t\tmode: import", "\t\tsource ="]
+        live = not reason and source is not None and source.settings.get("mode") == "directquery"
+        lines += [f"\tpartition {q(t.name)} = m", f"\t\tmode: {'directQuery' if live else 'import'}",
+                  "\t\tsource ="]
         lines += ["\t\t\t" + line if line.strip() else "" for line in query.split("\n")]
         lines += ["", "\tannotation PBI_ResultType = Table", ""]
         return lines
@@ -213,7 +216,8 @@ class _Emitter:
 
         culture = next((s.settings["culture"] for s in self.spec.data_sources
                         if s.settings.get("culture")), "en-US")
-        order = list(self.params.values()) + [t.name for t in self.spec.tables]
+        params = list({p.name: p for ps in self.params.values() for p in ps.values()}.values())
+        order = [p.name for p in params] + [t.name for t in self.spec.tables]
         model = [
             "model Model",
             f"\tculture: {culture}",
@@ -230,15 +234,16 @@ class _Emitter:
         ] + [f"ref table {q(t.name)}" for t in self.spec.tables]
         _write(definition / "model.tmdl", model)
 
-        if self.params:
+        if params:
             lines: list[str] = []
-            for source_id, name in self.params.items():
-                source = self.spec.source(source_id)
+            for p in params:
+                if not p.value:
+                    self.todo(f"parameter {p.name} has no value in the .dxp: set it ({p.description})")
                 lines += [
-                    f"/// Spotfire source path; re-point to the delivered file",
-                    f"expression {q(name)} = {m_sources.m_string(source.path or '')} meta "
+                    f"/// {p.description}" if p.value else f"/// {TODO}: set this value. {p.description}",
+                    f"expression {q(p.name)} = {m_sources.m_string(p.value)} meta "
                     '[IsParameterQuery=true, Type="Text", IsParameterQueryRequired=true]',
-                    f"\tlineageTag: {_lineage(self.analysis, 'expression', name)}",
+                    f"\tlineageTag: {_lineage(self.analysis, 'expression', p.name)}",
                     "",
                     "\tannotation PBI_ResultType = Text",
                     "",
