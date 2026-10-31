@@ -91,6 +91,20 @@ Steps 4–6 can go in one worksheet with the role set to `ACCOUNTADMIN`. Run the
    export SNOWFLAKE_ROLE="PBI_READER"
    ```
 
+   On Windows, set them as user environment variables from PowerShell instead, then close every
+   terminal and Claude Code window and reopen them (`setx` only affects new processes):
+
+   ```powershell
+   setx SNOWFLAKE_ACCOUNT "<ORGNAME-ACCOUNTNAME>"
+   setx SNOWFLAKE_USER "PBI_SVC"
+   setx SNOWFLAKE_PAT "<token_secret>"
+   setx SNOWFLAKE_WAREHOUSE "PBI_WH"
+   setx SNOWFLAKE_ROLE "PBI_READER"
+   ```
+
+   On a new machine or network, add its public IP to the step 5 policy (keep the existing ones):
+   `ALTER NETWORK POLICY PBI_NP SET ALLOWED_IP_LIST = ('<old.ip>', '<new.ip>');`
+
    In Power BI Desktop, use the same server and warehouse, `PBI_SVC` as the user, and the PAT as the password. If Desktop rejects the PAT, sign in with your admin user instead.
 
 9. **Connect Claude Code to Snowflake.** The repo's `.mcp.json` starts a local Snowflake MCP server (`uvx snowflake-labs-mcp`) that signs in as `PBI_SVC` with the step 8 variables; the PAT is passed as the password. `.claude/snowflake_mcp.yaml` limits it to one tool, `run_snowflake_query`, which accepts `SELECT`, `DESCRIBE` and `SHOW` only. Everything else is rejected before it reaches Snowflake, and the `PBI_READER` role limits what reaches it. Nothing has to be created in Snowflake.

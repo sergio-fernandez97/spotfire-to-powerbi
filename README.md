@@ -173,3 +173,7 @@ uv run --project dxp2pbi dxp2pbi inspect data/X.dxp      # what is inside a .dxp
 
 [uv](https://docs.astral.sh/uv/) and Python 3.12. Dependencies install themselves on first run.
 Tests: `cd dxp2pbi && uv run pytest`.
+
+On Windows: `winget install --id=astral-sh.uv -e`, then `uv python install 3.12`, and open a new
+terminal so `uv` is on `PATH`. The validation hook and the Snowflake MCP server both run through
+`uv`, so nothing else is needed.
